@@ -1,0 +1,14 @@
+name = "edgetunnel-upstream-monitor"
+main = "src/index.js"
+compatibility_date = "2025-11-04"
+
+[vars]
+UPSTREAM_OWNER = "cmliu"
+UPSTREAM_REPO = "edgetunnel"
+TARGET_OWNER = "rayzzzzzz331"
+TARGET_REPO = "edgetunnel"
+BRANCH = "main"
+DISPATCH_EVENT_TYPE = "upstream-update"
+
+[triggers]
+crons = ["*/30 * * * *"]

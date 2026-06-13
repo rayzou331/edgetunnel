@@ -1,0 +1,123 @@
+name: Deploy edgetunnel Worker
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "_worker.js"
+      - "wrangler.toml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      EDGETUNNEL_ADMIN: ${{ secrets.EDGETUNNEL_ADMIN }}
+      EDGETUNNEL_KEY: ${{ secrets.EDGETUNNEL_KEY }}
+      EDGETUNNEL_UUID: ${{ secrets.EDGETUNNEL_UUID }}
+      EDGETUNNEL_PROXYIP: ${{ secrets.EDGETUNNEL_PROXYIP }}
+      EDGETUNNEL_URL: ${{ secrets.EDGETUNNEL_URL }}
+      EDGETUNNEL_GO2SOCKS5: ${{ secrets.EDGETUNNEL_GO2SOCKS5 }}
+      EDGETUNNEL_DEBUG: ${{ secrets.EDGETUNNEL_DEBUG }}
+      EDGETUNNEL_OFF_LOG: ${{ secrets.EDGETUNNEL_OFF_LOG }}
+      EDGETUNNEL_BEST_SUB: ${{ secrets.EDGETUNNEL_BEST_SUB }}
+      EDGETUNNEL_PRELOAD_RACE_DIAL: ${{ secrets.EDGETUNNEL_PRELOAD_RACE_DIAL }}
+      WORKER_NAME: ${{ vars.EDGETUNNEL_WORKER_NAME || 'edgetunnel' }}
+      KV_TITLE: ${{ vars.EDGETUNNEL_KV_TITLE || 'edgetunnel-kv' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID EDGETUNNEL_ADMIN; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: $name"
+              exit 1
+            fi
+          done
+
+      - name: Create or reuse KV namespace
+        id: kv
+        run: |
+          set -euo pipefail
+
+          api() {
+            curl -fsS \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "$@"
+          }
+
+          list_json="$(api "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces?per_page=100")"
+          namespace_id="$(node -e '
+            const data = JSON.parse(process.argv[1]);
+            const title = process.argv[2];
+            const item = (data.result || []).find((namespace) => namespace.title === title);
+            process.stdout.write(item?.id || "");
+          ' "$list_json" "$KV_TITLE")"
+
+          if [ -z "$namespace_id" ]; then
+            create_json="$(api -X POST \
+              --data "{\"title\":\"${KV_TITLE}\"}" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces")"
+            namespace_id="$(node -e '
+              const data = JSON.parse(process.argv[1]);
+              process.stdout.write(data.result?.id || "");
+            ' "$create_json")"
+          fi
+
+          if [ -z "$namespace_id" ]; then
+            echo "::error::Could not create or locate KV namespace"
+            exit 1
+          fi
+
+          echo "namespace_id=$namespace_id" >> "$GITHUB_OUTPUT"
+
+      - name: Write deploy config
+        run: |
+          set -euo pipefail
+          cat > wrangler.deploy.toml <<EOF
+          name = "${WORKER_NAME}"
+          main = "_worker.js"
+          compatibility_date = "2025-11-04"
+          keep_vars = true
+
+          [[kv_namespaces]]
+          binding = "KV"
+          id = "${{ steps.kv.outputs.namespace_id }}"
+          EOF
+
+      - name: Deploy Worker
+        run: npx wrangler@4 deploy --config wrangler.deploy.toml
+
+      - name: Put Worker secrets
+        run: |
+          set -euo pipefail
+
+          put_secret() {
+            local binding="$1"
+            local value="$2"
+            if [ -n "$value" ]; then
+              printf '%s' "$value" | npx wrangler@4 secret put "$binding" --config wrangler.deploy.toml
+            fi
+          }
+
+          put_secret ADMIN "$EDGETUNNEL_ADMIN"
+          put_secret KEY "$EDGETUNNEL_KEY"
+          put_secret UUID "$EDGETUNNEL_UUID"
+          put_secret PROXYIP "$EDGETUNNEL_PROXYIP"
+          put_secret URL "$EDGETUNNEL_URL"
+          put_secret GO2SOCKS5 "$EDGETUNNEL_GO2SOCKS5"
+          put_secret DEBUG "$EDGETUNNEL_DEBUG"
+          put_secret OFF_LOG "$EDGETUNNEL_OFF_LOG"
+          put_secret BEST_SUB "$EDGETUNNEL_BEST_SUB"
+          put_secret PRELOAD_RACE_DIAL "$EDGETUNNEL_PRELOAD_RACE_DIAL"

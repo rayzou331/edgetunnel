@@ -5,7 +5,10 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 0 * * *" # every day
+    - cron: "0 0 * * *" # fallback: every day
+  repository_dispatch:
+    types:
+      - upstream-update
   workflow_dispatch:
 
 jobs:
