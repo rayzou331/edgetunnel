@@ -14,6 +14,7 @@ Add these in GitHub: `Settings` -> `Secrets and variables` -> `Actions`.
 Required:
 
 - `CLOUDFLARE_API_TOKEN`: Cloudflare API token with Workers Scripts edit and Workers KV Storage edit permissions.
+- Or `CLOUDFLARE_REFRESH_TOKEN`: Wrangler OAuth refresh token. If both are present, `CLOUDFLARE_API_TOKEN` is used.
 - `CLOUDFLARE_ACCOUNT_ID`: Cloudflare account ID.
 - `EDGETUNNEL_ADMIN`: Admin password for `/admin`.
 - `MONITOR_GITHUB_TOKEN`: GitHub token that can call `repository_dispatch` on this repo.
