@@ -20,6 +20,7 @@ jobs:
       CLOUDFLARE_REFRESH_TOKEN: ${{ secrets.CLOUDFLARE_REFRESH_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       WRANGLER_CLIENT_ID: ${{ secrets.WRANGLER_CLIENT_ID || '54d11594-84e4-41aa-b438-e81b8fa78ee7' }}
+      GH_TOKEN: ${{ secrets.MONITOR_GITHUB_TOKEN }}
       EDGETUNNEL_ADMIN: ${{ secrets.EDGETUNNEL_ADMIN }}
       EDGETUNNEL_KEY: ${{ secrets.EDGETUNNEL_KEY }}
       EDGETUNNEL_UUID: ${{ secrets.EDGETUNNEL_UUID }}
@@ -53,6 +54,12 @@ jobs:
           fi
           echo "::add-mask::$access_token"
           echo "CLOUDFLARE_API_TOKEN=$access_token" >> "$GITHUB_ENV"
+
+          refresh_token="$(node -e 'const j=JSON.parse(process.argv[1]); process.stdout.write(j.refresh_token || "")' "$response")"
+          if [ -n "$refresh_token" ] && [ -n "${GH_TOKEN:-}" ]; then
+            echo "::add-mask::$refresh_token"
+            printf '%s' "$refresh_token" | gh secret set CLOUDFLARE_REFRESH_TOKEN --repo "$GITHUB_REPOSITORY"
+          fi
 
       - name: Validate required secrets
         run: |

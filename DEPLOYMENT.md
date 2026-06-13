@@ -19,6 +19,8 @@ Required:
 - `EDGETUNNEL_ADMIN`: Admin password for `/admin`.
 - `MONITOR_GITHUB_TOKEN`: GitHub token that can call `repository_dispatch` on this repo.
 
+When `CLOUDFLARE_REFRESH_TOKEN` is used, the workflows rotate it back into GitHub secrets after each refresh.
+
 Optional edgetunnel Worker secrets:
 
 - `EDGETUNNEL_KEY`
